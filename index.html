@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pro Reptile Manager 🦎</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial; background:#121212; color:#eee; margin:0; padding:0; }
+.container { max-width:700px; margin:auto; padding:10px; }
+h1 { margin-top:10px; }
+.card { background:#1e1e1e; padding:15px; margin:15px 0; border-radius:12px; box-shadow:0 0 10px rgba(0,0,0,0.5); }
+button { margin:5px; padding:10px; border:none; border-radius:8px; background:#4CAF50; color:white; cursor:pointer; }
+button:hover { background:#45a049; }
+input, select { padding:8px; margin:5px; border-radius:5px; border:none; }
+img { width:200px; border-radius:10px; }
+label { display:block; margin:5px 0; }
+a { color:#4CAF50; text-decoration:none; margin:0 5px; }
+a:hover { text-decoration:underline; }
+canvas { background:#2c2c2c; margin-top:15px; border-radius:10px; }
+.swipe-container { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; }
+.swipe-container .card { flex:0 0 80%; scroll-snap-align:center; }
+.paypal-button { background:#ffc439; color:#111; font-weight:bold; padding:10px 20px; border:none; border-radius:8px; cursor:pointer; margin:10px; }
+.paypal-button:hover { background:#ffb347; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Pro Reptile Manager 🦎</h1>
+
+<div class="card">
+<h3>Add a Pet</h3>
+<input id="petName" placeholder="Pet Name (e.g., Bart)">
+<select id="petType">
+<option value="crested">Crested Gecko</option>
+<option value="leopard">Leopard Gecko</option>
+<option value="bearded">Bearded Dragon</option>
+<option value="ball">Ball Python</option>
+<option value="corn">Corn Snake</option>
+<option value="green">Green Anole</option>
+</select>
+<button onclick="addPet()">Add Pet</button>
+</div>
+
+<div class="swipe-container" id="pets"></div>
+<canvas id="weightChart" width="400" height="200"></canvas>
+
+<div class="card">
+<h3>Support Me 💰</h3>
+<form action="https://www.paypal.com/donate" method="post" target="_blank">
+<input type="hidden" name="business" value="777hdhv">
+<input type="hidden" name="currency_code" value="USD">
+<button class="paypal-button" type="submit">Donate via PayPal</button>
+</form>
+</div>
+</div>
+
+<script>
+// ===== DATA =====
+const reptileInfo = {
+  crested:{name:"Crested Gecko",img:"https://upload.wikimedia.org/wikipedia/commons/1/1c/Crested_gecko.jpg"},
+  leopard:{name:"Leopard Gecko",img:"https://upload.wikimedia.org/wikipedia/commons/5/5e/Leopard_gecko.jpg"},
+  bearded:{name:"Bearded Dragon",img:"https://upload.wikimedia.org/wikipedia/commons/6/6d/Bearded_dragon.jpg"},
+  ball:{name:"Ball Python",img:"https://upload.wikimedia.org/wikipedia/commons/0/0c/Ball_python.jpg"},
+  corn:{name:"Corn Snake",img:"https://upload.wikimedia.org/wikipedia/commons/5/5f/Cornsnake.jpg"},
+  green:{name:"Green Anole",img:"https://upload.wikimedia.org/wikipedia/commons/6/65/Green_anole_Anolis_carolinensis.jpg"}
+};
+
+let pets = JSON.parse(localStorage.getItem("pets")) || [];
+
+// ===== SAVE =====
+function save(){localStorage.setItem("pets",JSON.stringify(pets));}
+
+// ===== ADD PET =====
+function addPet(){
+  const name = document.getElementById("petName").value.trim();
+  const type = document.getElementById("petType").value;
+  if(!name){ alert("Enter a pet name!"); return; }
+  pets.push({name,type,fed:"Never",shed:"None",weightLog:[],sizeLog:[],checklist:{fed:false,water:false,mist:false}});
+  save(); render(); updateChart();
+}
+
+// ===== RENDER PET CARDS =====
+function render(){
+  const container = document.getElementById("pets");
+  container.innerHTML = "";
+  pets.forEach((pet,i)=>{
+    const info = reptileInfo[pet.type];
+    container.innerHTML += `<div class="card">
+      <h2>${pet.name} (${info.name})</h2>
+      <img src="${info.img}">
+      <p>Last Fed: ${pet.fed}</p>
+      <p>Shed: ${pet.shed}</p>
+      <label><input type="checkbox" onchange="toggle(${i},'fed')" ${pet.checklist.fed?"checked":""}> Fed</label>
+      <label><input type="checkbox" onchange="toggle(${i},'water')" ${pet.checklist.water?"checked":""}> Water Changed</label>
+      <label><input type="checkbox" onchange="toggle(${i},'mist')" ${pet.checklist.mist?"checked":""}> Misted</label>
+      <input placeholder="Weight (g)" onchange="addWeight(${i},this.value)">
+      <input placeholder="Size (cm)" onchange="addSize(${i},this.value)"><br>
+      <button onclick="feedPet(${i})">Feed</button>
+      <button onclick="startShed(${i})">Start Shed</button>
+      <button onclick="endShed(${i})">End Shed</button><br>
+      <a href="https://www.petsmart.com/reptile/food/" target="_blank">Food</a> |
+      <a href="https://www.petsmart.com/reptile/habitats-and-decor/hides/" target="_blank">Hides</a> |
+      <a href="https://www.petsmart.com/reptile/environmental-control-and-lighting/" target="_blank">Lighting</a><br><br>
+      <button onclick="deletePet(${i})">Delete</button>
+    </div>`;
+  });
+}
+
+// ===== ACTIONS =====
+function feedPet(i){pets[i].fed = new Date().toLocaleString(); save(); notify(`${pets[i].name} has been fed!`); render();}
+function startShed(i){pets[i].shed="Started"; save(); notify(`${pets[i].name} started shedding!`); render();}
+function endShed(i){pets[i].shed="Finished"; save(); notify(`${pets[i].name} finished shedding!`); render();}
+function toggle(i,type){pets[i].checklist[type]=!pets[i].checklist[type]; save();}
+function addWeight(i,val){ if(val){ pets[i].weightLog.push({date:new Date().toLocaleDateString(),weight:val}); save(); updateChart(); } }
+function addSize(i,val){ if(val){ pets[i].sizeLog.push({date:new Date().toLocaleDateString(),size:val}); save(); } }
+function deletePet(i){ pets.splice(i,1); save(); render(); updateChart(); }
+
+// ===== CHART =====
+const ctx=document.getElementById("weightChart").getContext("2d");
+const chart=new Chart(ctx,{type:'line',data:{labels:[],datasets:[{label:'Weight (g)',data:[],borderColor:'#4CAF50',fill:false}]},options:{responsive:true,plugins:{legend:{display:true}}}});
+
+function updateChart(){
+  if(pets.length===0){ chart.data.labels=[]; chart.data.datasets[0].data=[]; chart.update(); return; }
+  const pet = pets[0];
+  chart.data.labels = pet.weightLog.map(e=>e.date);
+  chart.data.datasets[0].data = pet.weightLog.map(e=>e.weight);
+  chart.update();
+}
+
+// ===== NOTIFICATIONS =====
+function notify(msg){
+  if(Notification.permission==="granted"){ new Notification(msg); }
+  else if(Notification.permission!=="denied"){ Notification.requestPermission().then(p=>{ if(p==="granted") new Notification(msg); }); }
+}
+
+// ===== REMINDERS =====
+setInterval(()=>{
+  pets.forEach(p=>{
+    if(p.fed==="Never") notify(`Reminder: Feed ${p.name}!`);
+    if(p.shed==="Started") notify(`${p.name} may be shedding`);
+  });
+},60000);
+
+// ===== INIT =====
+render();
+updateChart();
+</script>
+</body>
+</html>
